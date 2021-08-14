@@ -1,0 +1,13 @@
+node_modules
+.vscode
+yarn-error.log
+
+dist
+config/config.ts
+config/default.json
+database.db
+src/proto.js
+src/proto.d.ts
+coverage
+.nyc_output
+.DS_Store

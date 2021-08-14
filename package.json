@@ -1,0 +1,49 @@
+{
+  "name": "lightning-box",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "postbuild": "cp src/proto.js dist",
+    "start": "rm -rf dist && npm run build && node dist/src/server.js",
+    "watch": "concurrently \"tsc -p tsconfig.json -w\" \"nodemon -w dist dist/server.js\"",
+    "proto": "pbjs --force-long -t static-module -o src/proto.js proto/rpc.proto proto/router.proto && pbts -o src/proto.d.ts src/proto.js",
+    "test": "jest tests",
+    "test:coverage": "jest --coverage --coveragePathIgnorePatterns \"proto\\.js|mocks\" tests"
+  },
+  "version": "1.0.0",
+  "private": true,
+  "author": "Hampus Sjöberg",
+  "license": "MIT",
+  "dependencies": {
+    "@grpc/grpc-js": "^1.3.6",
+    "@grpc/proto-loader": "^0.6.4",
+    "bech32": "2.0.0",
+    "config": "^3.3.6",
+    "date-fns": "^2.23.0",
+    "fastify": "^3.14.2",
+    "fastify-cookie": "^5.3.0",
+    "fastify-cors": "^5.2.0",
+    "fastify-session": "^5.2.1",
+    "fastify-static": "^4.2.2",
+    "fastify-websocket": "^3.2.0",
+    "grpc": "^1.24.11",
+    "protobufjs": "^6.11.2",
+    "qrcode-terminal": "^0.12.0",
+    "secp256k1": "^4.0.2",
+    "sql-template-strings": "^2.2.2",
+    "sqlite": "^4.0.23",
+    "sqlite3": "5.0.2",
+    "sqlstring": "^2.3.2",
+    "typescript": "^4.3.5"
+  },
+  "devDependencies": {
+    "@types/config": "^0.0.39",
+    "@types/jest": "^26.0.24",
+    "@types/node": "^16.4.3",
+    "@types/secp256k1": "^4.0.3",
+    "@types/sqlstring": "^2.3.0",
+    "jest": "^27.0.6",
+    "stream-mock": "^2.0.5",
+    "ts-jest": "^27.0.4",
+    "wait-for-expect": "^3.0.2"
+  }
+}
