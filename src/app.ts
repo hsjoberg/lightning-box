@@ -106,7 +106,7 @@ export default async function (options?: FastifyServerOptions) {
         amount,
         crypto
           .createHash("sha256")
-          .update(JSON.stringify([["text/plain", `Payment to ${username}`]]))
+          .update(JSON.stringify([["text/plain", `Payment to ${username}@${config.domain}`]]))
           .digest(),
       );
 
