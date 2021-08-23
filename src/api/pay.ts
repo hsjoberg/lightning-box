@@ -32,7 +32,7 @@ const Pay = async function (app, { lightning, router }) {
       callback: `${config.domainUrl}/lightning-address/${username}/send`,
       minSendable: 1 * MSAT,
       maxSendable: 1000000 * MSAT,
-      metadata: JSON.stringify([["text/plain", `Payment to ${username}@${config.domain}`]]),
+      metadata: JSON.stringify(constructLnUrlPayMetaData(username, config.domain)),
       commentAllowed: 144,
     };
   });
@@ -72,7 +72,7 @@ const Pay = async function (app, { lightning, router }) {
         amount,
         crypto
           .createHash("sha256")
-          .update(JSON.stringify([["text/plain", `Payment to ${username}@${config.domain}`]]))
+          .update(JSON.stringify(constructLnUrlPayMetaData(username, config.domain)))
           .digest(),
       );
 
@@ -102,6 +102,15 @@ const Pay = async function (app, { lightning, router }) {
 } as FastifyPluginAsync<{ lightning: Client; router: Client }>;
 
 export default Pay;
+
+type Metadata = [string, string][];
+
+function constructLnUrlPayMetaData(username: string, domain: string): Metadata {
+  return [
+    ["text/plain", `Payment to ${username}@${domain}`],
+    ["text/identifier", `${username}@${domain}`],
+  ];
+}
 
 interface ILnUrlPayParams {
   amount: number;
