@@ -4,7 +4,6 @@ yarn-error.log
 
 dist
 config/config.ts
-config/default.json
 database.db
 src/proto.js
 src/proto.d.ts
