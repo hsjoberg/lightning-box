@@ -1,5 +1,7 @@
 # 📥 Lightning Box
 
+**Lightning Box is in a very early stage, not much is finished yet.**
+
 _Work In Progress, not suited for production just yet._
 _Contributions, suggestions and ideas are appreciated._
 _Database schema and configuration are bound to change._
