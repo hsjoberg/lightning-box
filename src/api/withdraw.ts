@@ -45,8 +45,10 @@ const Withdraw = async function (app, { lightning, router }) {
 
   app.get<{
     Params: { code: string };
+    Querystring: { balanceCheck: string };
   }>("/withdraw/:code", async (request, response) => {
     const code = request.params.code;
+    const { balanceCheck } = request.query;
 
     const withdrawalCode = await getWithdrawalCode(db, code);
     if (!withdrawalCode) {
@@ -78,7 +80,12 @@ const Withdraw = async function (app, { lightning, router }) {
       k1,
       minWithdrawable: totalWithdrawalSat * MSAT,
       maxWithdrawable: totalWithdrawalSat * MSAT,
+      balanceCheck: `${config.domainUrl}/withdraw/${code}?balanceCheck`,
     };
+    if (balanceCheck) {
+      withdrawRequest.currentBalance = totalWithdrawalSat;
+    }
+
     return withdrawRequest;
   });
 
@@ -136,6 +143,8 @@ interface ILnUrlWithdrawRequest {
   defaultDescription: string;
   minWithdrawable: number;
   maxWithdrawable: number;
+  balanceCheck: string;
+  currentBalance?: number;
 }
 
 interface ILnUrlWithdrawResponse {
