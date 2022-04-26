@@ -21,7 +21,7 @@ make the service implementation independent.
 
 The `master` branch always expects the latest version of lnd. Lnd compiled with routerrpc is required.
 
-1. Run lnd, wallet must be unlocked for Dunder to operate correctly
+1. Run lnd, wallet must be unlocked for Lightning Box to operate correctly
 2. `git clone https://github.com/hsjoberg/lightning-box && cd lightning-box`
 3. Copy `config/config.ts_TEMPLATE` to `config/config.ts` and set up your configuration. See config/interface.ts for documentation over the configuration
 4. `npm install`

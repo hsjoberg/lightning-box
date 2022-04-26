@@ -12,6 +12,7 @@ const config: Config = {
     cert: "~/path/to/lnd/tls.cert",
     adminMacaroon: "~/path/to/lnd/admin.macaroon",
   },
+  singlePaymentForwardWithdrawLimit: 5,
 };
 
 export default config;

@@ -107,7 +107,7 @@ type Metadata = [string, string][];
 
 function constructLnUrlPayMetaData(username: string, domain: string): Metadata {
   return [
-    ["text/plain", `Payment to ${username}@${domain}`],
+    ["text/plain", `${username}@${domain}:  Thank you for the sats!`],
     ["text/identifier", `${username}@${domain}`],
   ];
 }

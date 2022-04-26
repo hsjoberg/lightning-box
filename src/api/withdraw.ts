@@ -8,7 +8,7 @@ import {
   updatePayment,
   updatePaymentsSetAsForwarded,
 } from "../db/payment";
-import { sendPaymentSync, subscribeInvoices } from "../utils/lnd-api";
+import { decodePayReq, sendPaymentSync, subscribeInvoices } from "../utils/lnd-api";
 import { MSAT } from "../utils/constants";
 import getDb from "../db/db";
 import { getWithdrawalCode } from "../db/withdrawalCode";
@@ -45,14 +45,13 @@ const Withdraw = async function (app, { lightning, router }) {
 
   app.get<{
     Params: { code: string };
-    Querystring: { balanceCheck: string };
+    Querystring: { balanceCheck: string; single: string };
   }>("/withdraw/:code", async (request, response) => {
     const code = request.params.code;
-    const { balanceCheck } = request.query;
+    const { balanceCheck, single } = request.query;
 
     const withdrawalCode = await getWithdrawalCode(db, code);
     if (!withdrawalCode) {
-      response.code(400);
       return {
         status: "ERROR",
         reason: "Invalid withdrawal code.",
@@ -61,9 +60,7 @@ const Withdraw = async function (app, { lightning, router }) {
 
     const payments = await getNonForwardedPayments(db, withdrawalCode.userAlias);
     const totalWithdrawalSat = payments.reduce((prev, curr) => prev + curr.amountSat, 0);
-
-    if (totalWithdrawalSat <= 0) {
-      response.code(400);
+    if (totalWithdrawalSat <= 0 && balanceCheck === undefined) {
       return {
         status: "ERROR",
         reason: "No funds available.",
@@ -76,7 +73,7 @@ const Withdraw = async function (app, { lightning, router }) {
     const withdrawRequest: ILnUrlWithdrawRequest = {
       tag: "withdrawRequest",
       callback: `${config.domainUrl}/withdraw/${code}/callback`,
-      defaultDescription: `Withdraw Lightning Box for ${withdrawalCode.userAlias}@${config.domain}`,
+      defaultDescription: `Lightning Box:  Withdrawal for ${withdrawalCode.userAlias}@${config.domain}`,
       k1,
       minWithdrawable: totalWithdrawalSat * MSAT,
       maxWithdrawable: totalWithdrawalSat * MSAT,
@@ -98,7 +95,6 @@ const Withdraw = async function (app, { lightning, router }) {
 
     const checkK1 = withdrawalRequests.get(withdrawResponse.k1);
     if (checkK1 !== code) {
-      response.code(400);
       return {
         status: "ERROR",
         reason: "Invalid request.",
@@ -107,7 +103,6 @@ const Withdraw = async function (app, { lightning, router }) {
 
     const withdrawalCode = await getWithdrawalCode(db, code);
     if (!withdrawalCode) {
-      response.code(400);
       return {
         status: "ERROR",
         reason: "Invalid withdrawal code.",
@@ -115,21 +110,37 @@ const Withdraw = async function (app, { lightning, router }) {
     }
 
     if (!withdrawResponse.pr) {
-      response.code(400);
       return {
         status: "ERROR",
         reason: "Missing parameter pr.",
       };
     }
 
-    response.send({
-      status: "OK",
-    });
+    const payments = await getNonForwardedPayments(db, withdrawalCode.userAlias);
+    const totalWithdrawalSat = payments.reduce((prev, curr) => prev + curr.amountSat, 0);
+    const paymentRequest = await decodePayReq(lightning, request.query.pr);
 
-    const result = await sendPaymentSync(lightning, withdrawResponse.pr);
-    console.log(result);
-    if (!result.paymentError || result.paymentError.length === 0) {
-      await updatePaymentsSetAsForwarded(db, withdrawalCode.userAlias, withdrawResponse.pr);
+    if (totalWithdrawalSat <= 0) {
+      return {
+        status: "ERROR",
+        reason: "No funds available.",
+      };
+    } else if (paymentRequest.numMsat.eq(totalWithdrawalSat * 1000)) {
+      response.send({
+        status: "OK",
+      });
+
+      const result = await sendPaymentSync(lightning, withdrawResponse.pr);
+      console.log(result);
+      if (!result.paymentError || result.paymentError.length === 0) {
+        await updatePaymentsSetAsForwarded(db, withdrawalCode.userAlias, withdrawResponse.pr);
+      }
+      withdrawalRequests.delete(withdrawResponse.k1);
+    } else {
+      response.send({
+        status: "ERROR",
+        reason: "Amount mismatch",
+      });
     }
   });
 } as FastifyPluginAsync<{ lightning: Client; router: Client }>;

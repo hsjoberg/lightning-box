@@ -26,4 +26,8 @@ export interface Config {
     // Path to the admin.macaroon (i.e ~/.lnd/data/chain/bitcoin/mainnet/admin.macaroon).
     adminMacaroon: string;
   };
+
+  // The number of single payment withdrawals (in contrast to batch withdrawal) we allow.
+  // If exceeded, batch withdrawal is enforced.
+  singlePaymentForwardWithdrawLimit: number;
 }

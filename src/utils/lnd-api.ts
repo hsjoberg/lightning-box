@@ -35,6 +35,19 @@ export function subscribeInvoices(lightning: Client) {
   );
 }
 
+export async function decodePayReq(lightning: Client, payReq: string) {
+  const decodePayReqRequest = lnrpc.PayReqString.encode({
+    payReq,
+  }).finish();
+  const response = await grpcMakeUnaryRequest<lnrpc.PayReq>(
+    lightning,
+    "/lnrpc.Lightning/DecodePayReq",
+    decodePayReqRequest,
+    lnrpc.PayReq.decode,
+  );
+  return response;
+}
+
 export async function sendPaymentSync(lightning: Client, paymentRequest: string) {
   const sendPaymentSyncRequest = lnrpc.SendRequest.encode({
     paymentRequest,
