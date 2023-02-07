@@ -10,6 +10,27 @@ export const stringToUint8Array = (str: string) => {
   return Uint8Array.from(str, (x) => x.charCodeAt(0));
 };
 
+export const bytesToString = (bytes: ArrayLike<number>) => {
+  return String.fromCharCode.apply(null, bytes as any);
+};
+
+// TODO function appears to be broken
+export function uint8ArrayToUnicodeString(ua: Uint8Array) {
+  var binstr = Array.prototype.map
+    .call(ua, function (ch) {
+      return String.fromCharCode(ch);
+    })
+    .join("");
+  var escstr = binstr.replace(/(.)/g, function (m, p) {
+    var code = p.charCodeAt(p).toString(16).toUpperCase();
+    if (code.length < 2) {
+      code = "0" + code;
+    }
+    return "%" + code;
+  });
+  return decodeURIComponent(escstr);
+}
+
 export const bytesToHexString = (bytes: Buffer | Uint8Array) => {
   // console.log("inside bytesToHexString");
   // console.log(bytes);
@@ -20,7 +41,7 @@ export const bytesToHexString = (bytes: Buffer | Uint8Array) => {
 
 export const generateBytes = (n: number): Promise<Buffer> => {
   return new Promise((resolve, reject) => {
-    randomBytes(32, function (error, buffer) {
+    randomBytes(n, function (error, buffer) {
       if (error) {
         reject(error);
         return;

@@ -30,4 +30,9 @@ export interface Config {
   // The number of single payment withdrawals (in contrast to batch withdrawal) we allow.
   // If exceeded, batch withdrawal is enforced.
   singlePaymentForwardWithdrawLimit: number;
+
+  // Disable the custodial part of Lightning Box.
+  // This requires users to be online at the time of the payment request.
+  // Otherwise the request will immediately fail.
+  disableCustodial: boolean;
 }

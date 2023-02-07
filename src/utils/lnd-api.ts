@@ -219,3 +219,35 @@ export function subscribePeerEvents(lightning: Client) {
     undefined,
   );
 }
+
+export async function sendCustomMessage(
+  lightning: Client,
+  peerPubkey: string,
+  type: number,
+  dataString: string,
+) {
+  const sendCustomMessageRequest = lnrpc.SendCustomMessageRequest.encode({
+    peer: hexToUint8Array(peerPubkey),
+    type,
+    data: stringToUint8Array(dataString),
+  }).finish();
+  const response = await grpcMakeUnaryRequest<lnrpc.SendCustomMessageResponse>(
+    lightning,
+    "/lnrpc.Lightning/SendCustomMessage",
+    sendCustomMessageRequest,
+    lnrpc.SendCustomMessageResponse.decode,
+  );
+  return response;
+}
+
+export function SubscribeCustomMessages(lightning: Client) {
+  const request = lnrpc.SubscribeCustomMessagesRequest.encode({}).finish();
+  return lightning.makeServerStreamRequest(
+    "/lnrpc.Lightning/SubscribeCustomMessages",
+    (arg: any) => arg,
+    (arg) => arg,
+    request,
+    new Metadata(),
+    undefined,
+  );
+}

@@ -13,6 +13,7 @@ const config: Config = {
     adminMacaroon: "~/path/to/lnd/admin.macaroon",
   },
   singlePaymentForwardWithdrawLimit: 5,
+  disableCustodial: false,
 };
 
 export default config;

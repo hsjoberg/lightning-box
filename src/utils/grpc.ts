@@ -30,7 +30,7 @@ export const getGrpcClients = () => {
   const adminMacaroon = config.backendConfigLnd?.adminMacaroon.replace("~", os.homedir);
   // console.log(grpcServer, tlsCert, adminMacaroon);
   const packageDefinition = protoLoader.loadSync(
-    ["./proto/rpc.proto", "./proto/router.proto"],
+    ["./proto/lightning.proto", "./proto/router.proto"],
     loaderOptions,
   );
   const lnrpcProto = loadPackageDefinition(packageDefinition).lnrpc as GrpcObject;
