@@ -14,6 +14,8 @@ Lightning Box will take the payment on behalf of the wallet and then notify the 
 By utilizing the widely adopted protocols `LNURL-auth` and `LNURL-withdraw`, any supporting Lightning Wallet can use Lightning Box.
 Wallets that also support `LNURL-withdraw`'s [`balanceCheck`](https://github.com/fiatjaf/lnurl-rfc/blob/luds/14.md) can keep the Lightning Box as known service inside the wallet and easily withdraw from the box without leaving the wallet.
 
+For supporting wallets of `bLIP-TBD`, if the wallet is online, the `LNURL-pay` request will be forwarded to the wallet app via an LN P2P message, so that it can respond back with its own invoice. In this mode Lightning Box does not take the payment on behalf of the wallet.
+
 ## Build
 
 Lightning Box requires lnd as the Lightning backend right now, though the plan is to
