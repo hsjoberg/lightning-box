@@ -239,7 +239,7 @@ async function handleLnurlPayRequest1Forwarding(
     request: "LNURLPAY_REQUEST1",
     data: null,
     metadata: {
-      lightningAddress: `${user.alias}@{config.domain}`,
+      lightningAddress: `${user.alias}@${config.domain}`,
     },
   };
 
