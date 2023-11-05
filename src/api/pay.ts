@@ -283,6 +283,9 @@ async function handleLnurlPayRequest2Forwarding(
       amount,
       comment,
     },
+    metadata: {
+      lightningAddress: `${user.alias}@${config.domain}`,
+    },
   };
 
   await sendCustomMessage(
