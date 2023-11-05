@@ -32,6 +32,7 @@ interface ILnurlPayForwardP2PMessage {
     | "LNURLPAY_REQUEST2"
     | "LNURLPAY_REQUEST2_RESPONSE";
   data: any;
+  metadata?: any;
 }
 
 const Pay = async function (app, { lightning, router }) {
@@ -237,6 +238,9 @@ async function handleLnurlPayRequest1Forwarding(
     id: currentRequest,
     request: "LNURLPAY_REQUEST1",
     data: null,
+    metadata: {
+      lightningAddress: `${user.alias}@{config.domain}`,
+    },
   };
 
   await sendCustomMessage(
