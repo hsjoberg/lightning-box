@@ -66,7 +66,7 @@ const Pay = async function (app, { lightning, router }) {
     } else if (config.disableCustodial) {
       return {
         status: "ERROR",
-        reason: `It's not possible pay ${username}@${config.domain} at this time.`,
+        reason: `It's not possible to pay ${username}@${config.domain} at this time.`,
       };
     }
 
@@ -257,7 +257,7 @@ async function handleLnurlPayRequest1Forwarding(
     }
     response.send({
       status: "ERROR",
-      reason: `It's not possible pay ${user.alias}@${config.domain} at this time.`,
+      reason: `It's not possible to pay ${user.alias}@${config.domain} at this time.`,
     });
   }, 30 * 1000);
 }
@@ -302,7 +302,7 @@ async function handleLnurlPayRequest2Forwarding(
     }
     response.send({
       status: "ERROR",
-      reason: `It's not possible pay ${user.alias}@${config.domain} at this time.`,
+      reason: `It's not possible to pay ${user.alias}@${config.domain} at this time.`,
     });
   }, 30 * 1000);
 }
