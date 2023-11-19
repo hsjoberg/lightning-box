@@ -14,7 +14,7 @@ import { MSAT } from "../utils/constants";
 import getDb from "../db/db";
 import config from "../../config/config";
 import { lnrpc } from "../proto";
-import { bytesToString } from "../utils/common";
+import { bytesToString, uint8ArrayToUnicodeString } from "../utils/common";
 
 let lnurlPayForwardingRequestCounter = 0;
 const lnurlPayForwardingRequests = new Map<
@@ -190,7 +190,9 @@ function customMessageHandler(data: any) {
     if (customMessage.type !== LnurlPayRequestLNP2PType) {
       throw new Error(`Unknown custom message type ${customMessage.type}`);
     }
-    const request = JSON.parse(bytesToString(customMessage.data)) as ILnurlPayForwardP2PMessage;
+    const request = JSON.parse(
+      uint8ArrayToUnicodeString(customMessage.data),
+    ) as ILnurlPayForwardP2PMessage;
     console.log(request);
 
     if (request.request === "LNURLPAY_REQUEST1_RESPONSE") {
@@ -207,7 +209,7 @@ function customMessageHandler(data: any) {
       });
     } else if (request.request === "LNURLPAY_REQUEST2_RESPONSE") {
       const customMessage = lnrpc.CustomMessage.decode(data);
-      const request = JSON.parse(bytesToString(customMessage.data));
+      const request = JSON.parse(uint8ArrayToUnicodeString(customMessage.data));
       if (!lnurlPayForwardingRequests.has(request.id)) {
         console.error(`Unknown LNURL-pay forwarding callback request ${request.id}`);
         return;
@@ -216,6 +218,8 @@ function customMessageHandler(data: any) {
       lnurlPayForwardingRequests.delete(request.id);
 
       lnurlPayForwardingRequest?.response.send(request.data);
+    } else {
+      console.error("Unknown message", request);
     }
   } catch (error) {
     console.error(`Error when handling custom message: ${error.message}`);

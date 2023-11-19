@@ -14,7 +14,6 @@ export const bytesToString = (bytes: ArrayLike<number>) => {
   return String.fromCharCode.apply(null, bytes as any);
 };
 
-// TODO function appears to be broken
 export function uint8ArrayToUnicodeString(ua: Uint8Array) {
   var binstr = Array.prototype.map
     .call(ua, function (ch) {
@@ -22,7 +21,7 @@ export function uint8ArrayToUnicodeString(ua: Uint8Array) {
     })
     .join("");
   var escstr = binstr.replace(/(.)/g, function (m, p) {
-    var code = p.charCodeAt(p).toString(16).toUpperCase();
+    var code = p.charCodeAt(0).toString(16).toUpperCase();
     if (code.length < 2) {
       code = "0" + code;
     }

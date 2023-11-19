@@ -7,7 +7,7 @@ export interface IUserDB {
 
 export async function createUser(db: Database, { alias, pubkey }: IUserDB) {
   await db.run(
-    `INSERT INTO payment
+    `INSERT INTO user
       (alias, pubkey)
     VALUES
       ($alias, $pubkey)
@@ -17,6 +17,12 @@ export async function createUser(db: Database, { alias, pubkey }: IUserDB) {
       $pubkey: pubkey,
     },
   );
+}
+
+export function getUserByPubkey(db: Database, pubkey: string) {
+  return db.get<IUserDB>(`SELECT * FROM user WHERE pubkey = $pubkey`, {
+    $pubkey: pubkey,
+  });
 }
 
 export function getUserByAlias(db: Database, alias: string) {

@@ -198,12 +198,25 @@ export async function checkPeerConnected(lightning: Client, pubkey: string) {
 }
 
 export async function pendingChannels(lightning: Client) {
-  const getInfoRequest = lnrpc.PendingChannelsRequest.encode({}).finish();
+  const pendingChannelsRequest = lnrpc.PendingChannelsRequest.encode({}).finish();
   const response = await grpcMakeUnaryRequest<lnrpc.PendingChannelsResponse>(
     lightning,
     "/lnrpc.Lightning/PendingChannels",
-    getInfoRequest,
+    pendingChannelsRequest,
     lnrpc.PendingChannelsResponse.decode,
+  );
+  return response;
+}
+
+export async function listChannels(lightning: Client, peer?: Uint8Array) {
+  const listChannelsRequest = lnrpc.ListChannelsRequest.encode({
+    peer,
+  }).finish();
+  const response = await grpcMakeUnaryRequest<lnrpc.ListChannelsResponse>(
+    lightning,
+    "/lnrpc.Lightning/ListChannels",
+    listChannelsRequest,
+    lnrpc.ListChannelsResponse.decode,
   );
   return response;
 }

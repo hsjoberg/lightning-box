@@ -20,6 +20,11 @@ export default async function (options?: FastifyServerOptions) {
     router,
   });
 
+  app.register(require("./api/user/manage"), {
+    lightning,
+    router,
+  });
+
   app.get("/getInfo", async function () {
     return await getInfo(lightning);
   });
