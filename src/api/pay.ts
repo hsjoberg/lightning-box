@@ -97,10 +97,17 @@ const Pay = async function (app, { lightning, router }) {
         };
       }
 
-      const { amount, comment } = parseSendTextCallbackQueryParams(request.query);
+      const { amount, comment, payerData } = parseSendTextCallbackQueryParams(request.query);
 
       if (await checkPeerConnected(lightning, user.pubkey)) {
-        await handleLnurlPayRequest2Forwarding(lightning, user, amount, comment, response);
+        await handleLnurlPayRequest2Forwarding(
+          lightning,
+          user,
+          amount,
+          comment,
+          payerData,
+          response,
+        );
         return;
       } else if (config.disableCustodial) {
         return {
@@ -168,6 +175,7 @@ function constructLnUrlPayMetaData(username: string, domain: string): Metadata {
 interface ILnUrlPayParams {
   amount: number;
   comment?: string;
+  payerData?: string;
 }
 
 function parseSendTextCallbackQueryParams(params: any): ILnUrlPayParams {
@@ -175,6 +183,7 @@ function parseSendTextCallbackQueryParams(params: any): ILnUrlPayParams {
     return {
       amount: Number.parseInt(params.amount ?? "0", 10),
       comment: params.comment ?? "",
+      payerData: params.payerdata,
     };
   } catch (e) {
     console.error(e);
@@ -271,6 +280,7 @@ async function handleLnurlPayRequest2Forwarding(
   user: IUserDB,
   amount: number,
   comment: string | undefined,
+  payerData: string | undefined,
   response: FastifyReply,
 ) {
   const currentRequest = lnurlPayForwardingRequestCounter++;
@@ -286,6 +296,7 @@ async function handleLnurlPayRequest2Forwarding(
     data: {
       amount,
       comment,
+      payerdata: payerData,
     },
     metadata: {
       lightningAddress: `${user.alias}@${config.domain}`,
