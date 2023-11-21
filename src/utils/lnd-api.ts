@@ -1,7 +1,7 @@
 import { Client, Metadata } from "@grpc/grpc-js";
 import Long from "long";
 
-import { hexToUint8Array, stringToUint8Array } from "./common";
+import { hexToUint8Array, stringToUint8Array, unicodeStringToUint8Array } from "./common";
 import { lnrpc, routerrpc } from "../proto";
 import { grpcMakeUnaryRequest } from "./grpc";
 
@@ -242,7 +242,7 @@ export async function sendCustomMessage(
   const sendCustomMessageRequest = lnrpc.SendCustomMessageRequest.encode({
     peer: hexToUint8Array(peerPubkey),
     type,
-    data: stringToUint8Array(dataString),
+    data: unicodeStringToUint8Array(dataString),
   }).finish();
   const response = await grpcMakeUnaryRequest<lnrpc.SendCustomMessageResponse>(
     lightning,
