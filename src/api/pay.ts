@@ -61,7 +61,7 @@ const Pay = async function (app, { lightning, router }) {
 
     // If the peer is connected, forward the LNURL-pay request via LN P2P.
     if (await checkPeerConnected(lightning, user.pubkey)) {
-      await handleLnurlPayRequest1Forwarding(lightning, user, response);
+      await handleLnurlPayRequest1Forwarding(lightning, user, username, response);
       return;
     } else if (config.disableCustodial) {
       return {
@@ -103,6 +103,7 @@ const Pay = async function (app, { lightning, router }) {
         await handleLnurlPayRequest2Forwarding(
           lightning,
           user,
+          username,
           amount,
           comment,
           payerData,
@@ -238,13 +239,14 @@ function customMessageHandler(data: any) {
 async function handleLnurlPayRequest1Forwarding(
   lightning: Client,
   user: IUserDB,
+  requestedUsername: string,
   response: FastifyReply,
 ) {
   const currentRequest = lnurlPayForwardingRequestCounter++;
   lnurlPayForwardingRequests.set(currentRequest, {
     pubkey: user.pubkey,
     response,
-    alias: user.alias,
+    alias: requestedUsername,
   });
 
   const request: ILnurlPayForwardP2PMessage = {
@@ -252,7 +254,7 @@ async function handleLnurlPayRequest1Forwarding(
     request: "LNURLPAY_REQUEST1",
     data: null,
     metadata: {
-      lightningAddress: `${user.alias}@${config.domain}`,
+      lightningAddress: `${requestedUsername}@${config.domain}`,
     },
   };
 
@@ -270,7 +272,7 @@ async function handleLnurlPayRequest1Forwarding(
     }
     response.send({
       status: "ERROR",
-      reason: `It's not possible to pay ${user.alias}@${config.domain} at this time.`,
+      reason: `It's not possible to pay ${requestedUsername}@${config.domain} at this time.`,
     });
   }, 30 * 1000);
 }
@@ -278,6 +280,7 @@ async function handleLnurlPayRequest1Forwarding(
 async function handleLnurlPayRequest2Forwarding(
   lightning: Client,
   user: IUserDB,
+  requestedUsername: string,
   amount: number,
   comment: string | undefined,
   payerData: string | undefined,
@@ -287,7 +290,7 @@ async function handleLnurlPayRequest2Forwarding(
   lnurlPayForwardingRequests.set(currentRequest, {
     pubkey: user.pubkey,
     response,
-    alias: user.alias,
+    alias: requestedUsername,
   });
 
   const request: ILnurlPayForwardP2PMessage = {
@@ -299,7 +302,7 @@ async function handleLnurlPayRequest2Forwarding(
       payerdata: payerData,
     },
     metadata: {
-      lightningAddress: `${user.alias}@${config.domain}`,
+      lightningAddress: `${requestedUsername}@${config.domain}`,
     },
   };
 
@@ -317,7 +320,7 @@ async function handleLnurlPayRequest2Forwarding(
     }
     response.send({
       status: "ERROR",
-      reason: `It's not possible to pay ${user.alias}@${config.domain} at this time.`,
+      reason: `It's not possible to pay ${requestedUsername}@${config.domain} at this time.`,
     });
   }, 30 * 1000);
 }
