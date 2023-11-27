@@ -104,3 +104,7 @@ export function createLnUrlAuth(k1: string, url: string) {
   });
   return bech32.encode("lnurl", bech32.toWords(stringToUint8Array(url + "?" + params)), 1024);
 }
+
+export function isValidNodePubkey(pubKeyStr: string) {
+  return /^[0-9a-fA-F]{66}$/.test(pubKeyStr);
+}

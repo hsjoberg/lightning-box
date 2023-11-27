@@ -9,7 +9,7 @@ import {
   SubscribeCustomMessages,
 } from "../utils/lnd-api";
 import { createPayment } from "../db/payment";
-import { getUserByAlias, IUserDB } from "../db/user";
+import { getUserByAlias, getUserByPubkey, IUserDB } from "../db/user";
 import { MSAT } from "../utils/constants";
 import getDb from "../db/db";
 import config from "../../config/config";
@@ -50,7 +50,7 @@ const Pay = async function (app, { lightning, router }) {
     };
   }>("/.well-known/lnurlp/:username", async (request, response) => {
     const username = request.params.username;
-    const user = await getUserByAlias(db, username);
+    const user = (await getUserByAlias(db, username)) ?? (await getUserByPubkey(db, username));
     if (!user) {
       response.code(400);
       return {
@@ -88,12 +88,12 @@ const Pay = async function (app, { lightning, router }) {
   }>("/lightning-address/:username/send", async (request, response) => {
     try {
       const username = request.params.username;
-      const user = await getUserByAlias(db, username);
+      const user = (await getUserByAlias(db, username)) ?? (await getUserByPubkey(db, username));
       if (!user) {
         response.code(400);
         return {
           status: "ERROR",
-          reason: `The recipient ${username} does not exist.`,
+          reason: `The recipient ${username}@${config.domain} does not exist.`,
         };
       }
 

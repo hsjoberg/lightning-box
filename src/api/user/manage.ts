@@ -2,7 +2,7 @@ import { FastifyPluginAsync } from "fastify";
 import { Client } from "@grpc/grpc-js";
 import { getUnixTime } from "date-fns";
 
-import { hexToUint8Array } from "../../utils/common";
+import { hexToUint8Array, isValidNodePubkey } from "../../utils/common";
 import { listChannels, verifyMessage } from "../../utils/lnd-api";
 import getDb from "../../db/db";
 import { createUser, getUserByAlias, getUserByPubkey } from "../../db/user";
@@ -255,6 +255,12 @@ const User = async function (app, { lightning, router }) {
       return {
         status: "ERROR",
         reason: "Nah. Don't claim to be satoshi.",
+      };
+    } else if (isValidNodePubkey(alias)) {
+      response.code(400);
+      return {
+        status: "ERROR",
+        reason: "Your username can't be a Lightning node pubkey.",
       };
     }
 
