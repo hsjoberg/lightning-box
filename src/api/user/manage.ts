@@ -70,7 +70,7 @@ const User = async function (app, { lightning, router }) {
 
     const currentTime = Math.floor(Date.now() / 1000);
     const timeDiff = currentTime - (signedMessage.timestamp ?? 0);
-    if (timeDiff < 0 || timeDiff > 30) {
+    if (timeDiff < -30 || timeDiff > 30) {
       response.code(400);
       return {
         status: "ERROR",
@@ -142,7 +142,7 @@ const User = async function (app, { lightning, router }) {
 
     const currentTime = Math.floor(Date.now() / 1000);
     const timeDiff = currentTime - (signedMessage.timestamp ?? 0);
-    if (timeDiff < 0 || timeDiff > 30) {
+    if (timeDiff < -30 || timeDiff > 30) {
       response.code(400);
       return {
         status: "ERROR",
@@ -221,7 +221,7 @@ const User = async function (app, { lightning, router }) {
 
     const currentTime = Math.floor(Date.now() / 1000);
     const timeDiff = currentTime - (signedMessage.timestamp ?? 0);
-    if (timeDiff < 0 || timeDiff > 30) {
+    if (timeDiff < -30 || timeDiff > 30) {
       response.code(400);
       return {
         status: "ERROR",
