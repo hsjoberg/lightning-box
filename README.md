@@ -14,7 +14,8 @@ Lightning Box will take the payment on behalf of the wallet and then notify the 
 By utilizing the widely adopted protocols `LNURL-auth` and `LNURL-withdraw`, any supporting Lightning Wallet can use Lightning Box.
 Wallets that also support `LNURL-withdraw`'s [`balanceCheck`](https://github.com/fiatjaf/lnurl-rfc/blob/luds/14.md) can keep the Lightning Box as known service inside the wallet and easily withdraw from the box without leaving the wallet.
 
-For supporting wallets of `bLIP-TBD`, if the wallet is online, the `LNURL-pay` request will be forwarded to the wallet app via an LN P2P message, so that it can respond back with its own invoice. In this mode Lightning Box does not take the payment on behalf of the wallet.
+For supporting wallets of [`bLIP-TBD`](https://github.com/hsjoberg/blips/blob/lnurl-forwarding/blip-lnurlforward.md), if the wallet is online, the `LNURL-pay` request will be forwarded to the wallet app via an LN P2P message, so that it can respond back with its own invoice. In this mode Lightning Box does not take the payment on behalf of the wallet.
+This mode is available in Blixt Wallet since version [0.6.9-420](https://github.com/hsjoberg/blixt-wallet/releases/tag/v0.6.9-420).
 
 ## Build
 
