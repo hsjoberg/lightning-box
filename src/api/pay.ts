@@ -14,7 +14,7 @@ import { MSAT } from "../utils/constants";
 import getDb from "../db/db";
 import config from "../../config/config";
 import { lnrpc } from "../proto";
-import { bytesToString, uint8ArrayToUnicodeString } from "../utils/common";
+import { bytesToHexString, uint8ArrayToUnicodeString } from "../utils/common";
 
 let lnurlPayForwardingRequestCounter = 0;
 const lnurlPayForwardingRequests = new Map<
@@ -211,6 +211,11 @@ function customMessageHandler(data: any) {
         return;
       }
       const lnurlPayForwardingRequest = lnurlPayForwardingRequests.get(request.id);
+      const peerPubkey = bytesToHexString(customMessage.peer);
+      if (peerPubkey !== lnurlPayForwardingRequest?.pubkey.toLowerCase()) {
+        console.error(`Ignoring LNURL-pay forwarding response ${request.id} from unexpected peer`);
+        return;
+      }
       lnurlPayForwardingRequests.delete(request.id);
 
       lnurlPayForwardingRequest?.response.send({
@@ -225,6 +230,13 @@ function customMessageHandler(data: any) {
         return;
       }
       const lnurlPayForwardingRequest = lnurlPayForwardingRequests.get(request.id);
+      const peerPubkey = bytesToHexString(customMessage.peer);
+      if (peerPubkey !== lnurlPayForwardingRequest?.pubkey.toLowerCase()) {
+        console.error(
+          `Ignoring LNURL-pay forwarding callback response ${request.id} from unexpected peer`,
+        );
+        return;
+      }
       lnurlPayForwardingRequests.delete(request.id);
 
       lnurlPayForwardingRequest?.response.send(request.data);
