@@ -6,17 +6,21 @@ export interface IUserDB {
 }
 
 export async function createUser(db: Database, { alias, pubkey }: IUserDB) {
-  await db.run(
-    `INSERT INTO user
+  const result = await db.run(
+    `INSERT OR IGNORE INTO user
       (alias, pubkey)
-    VALUES
-      ($alias, $pubkey)
+    SELECT $alias, $pubkey
+    WHERE NOT EXISTS (
+      SELECT 1 FROM user WHERE pubkey = $pubkey
+    )
     `,
     {
       $alias: alias,
       $pubkey: pubkey,
     },
   );
+
+  return result.changes === 1;
 }
 
 export function getUserByPubkey(db: Database, pubkey: string) {

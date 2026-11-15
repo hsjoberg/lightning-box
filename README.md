@@ -26,9 +26,30 @@ The `master` branch always expects the latest version of lnd. Lnd compiled with 
 
 1. Run lnd, wallet must be unlocked for Lightning Box to operate correctly
 2. `git clone https://github.com/hsjoberg/lightning-box && cd lightning-box`
-3. Copy `config/config.ts_TEMPLATE` to `config/config.ts` and set up your configuration. See config/interface.ts for documentation over the configuration
+3. Copy `config/config_TEMPLATE.ts` to `config/config.ts` and set up your configuration. See config/interface.ts for documentation over the configuration
 4. `npm install`
 5. `npm start`
+
+Node.js 20.17 or newer is required.
+
+### Production security
+
+For non-custodial deployments, set `disableCustodial: true`. This prevents the withdrawal routes and custodial invoice subscription from being registered.
+
+Do not give the service LND's `admin.macaroon`. Bake a macaroon limited to the RPCs used in non-custodial mode, then set `backendConfigLnd.macaroon` to its path:
+
+```sh
+lncli bakemacaroon \
+  uri:/lnrpc.Lightning/GetInfo \
+  uri:/lnrpc.Lightning/ListPeers \
+  uri:/lnrpc.Lightning/ListChannels \
+  uri:/lnrpc.Lightning/VerifyMessage \
+  uri:/lnrpc.Lightning/SendCustomMessage \
+  uri:/lnrpc.Lightning/SubscribeCustomMessages \
+  --save_to /secure/path/lightning-box.macaroon
+```
+
+Keep the Fastify listener on loopback and terminate HTTPS at the reverse proxy. The server trusts forwarded client IPs only from loopback proxies so rate limiting remains per client.
 
 # Test
 

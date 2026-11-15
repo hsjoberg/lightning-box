@@ -23,8 +23,11 @@ export interface Config {
     // Path to tls.cert (i.e ~/.lnd/tls.cert).
     cert: string;
 
-    // Path to the admin.macaroon (i.e ~/.lnd/data/chain/bitcoin/mainnet/admin.macaroon).
-    adminMacaroon: string;
+    // Path to a least-privilege macaroon baked for Lightning Box.
+    macaroon?: string;
+
+    // Deprecated compatibility option. Prefer `macaroon` with a restricted macaroon.
+    adminMacaroon?: string;
   };
 
   // The number of single payment withdrawals (in contrast to batch withdrawal) we allow.

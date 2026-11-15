@@ -27,28 +27,33 @@ export const getGrpcClients = () => {
   };
   const grpcServer = config.backendConfigLnd?.grpcServer;
   const tlsCert = config.backendConfigLnd?.cert.replace("~", os.homedir);
-  const adminMacaroon = config.backendConfigLnd?.adminMacaroon.replace("~", os.homedir);
-  // console.log(grpcServer, tlsCert, adminMacaroon);
+  const configuredMacaroon =
+    config.backendConfigLnd?.macaroon ?? config.backendConfigLnd?.adminMacaroon;
+  const macaroonPath = configuredMacaroon?.replace("~", os.homedir);
+  if (!config.backendConfigLnd?.macaroon && config.backendConfigLnd?.adminMacaroon) {
+    console.warn(
+      "Using backendConfigLnd.adminMacaroon is deprecated; configure a least-privilege macaroon instead.",
+    );
+  }
   const packageDefinition = protoLoader.loadSync(
     ["./proto/lightning.proto", "./proto/router.proto"],
     loaderOptions,
   );
   const lnrpcProto = loadPackageDefinition(packageDefinition).lnrpc as GrpcObject;
   const routerProto = loadPackageDefinition(packageDefinition).routerrpc as GrpcObject;
-  const macaroon = fs.readFileSync(adminMacaroon ?? "").toString("hex");
+  const macaroon = fs.readFileSync(macaroonPath ?? "").toString("hex");
   process.env.GRPC_SSL_CIPHER_SUITES = "HIGH+ECDSA";
   const lndCert = fs.readFileSync(tlsCert ?? "");
   const sslCreds = credentials.createSsl(lndCert);
-  let metadata = new Metadata();
+  const metadata = new Metadata();
   metadata.add("macaroon", macaroon);
   const macaroonCreds = credentials.createFromMetadataGenerator((args: any, callback: any) => {
     callback(null, metadata);
   });
-  let callCreds = credentials.combineCallCredentials(macaroonCreds);
-  let creds = credentials.combineChannelCredentials(sslCreds, macaroonCreds);
+  const creds = credentials.combineChannelCredentials(sslCreds, macaroonCreds);
 
-  let lightning = new (lnrpcProto as any).Lightning(grpcServer, creds) as Client;
-  let router = new (routerProto as any).Router(grpcServer, creds) as Client;
+  const lightning = new (lnrpcProto as any).Lightning(grpcServer, creds) as Client;
+  const router = new (routerProto as any).Router(grpcServer, creds) as Client;
 
   return { lightning, router };
 };
