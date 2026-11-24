@@ -9,11 +9,11 @@ const port = Number.parseInt(host.split(":")[1] ?? "8080");
 (async () => {
   const server = await app();
 
-  server.listen(port, domain, (err, address) => {
-    if (err) {
-      console.error(err);
-      process.exit(1);
-    }
+  try {
+    const address = await server.listen({ port, host: domain });
     console.log(`Server listening at ${address}`);
-  });
+  } catch (error) {
+    console.error(error);
+    process.exit(1);
+  }
 })();

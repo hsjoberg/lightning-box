@@ -1,6 +1,6 @@
 import { FastifyPluginAsync } from "fastify";
 import { Client } from "@grpc/grpc-js";
-import { getUnixTime } from "date-fns";
+import { createHash } from "crypto";
 
 import { hexToUint8Array, isValidNodePubkey } from "../../utils/common";
 import { listChannels, verifyMessage } from "../../utils/lnd-api";
@@ -12,8 +12,11 @@ interface ISignedMessage {
   nonce?: string;
   endpoint?: string;
   timestamp?: number; // This is a unix timestamp
-  data: { [k: string]: any };
+  data?: { [k: string]: unknown };
 }
+
+const SIGNED_MESSAGE_MAX_AGE_SECONDS = 30;
+const consumedSignedMessages = new Map<string, number>();
 
 const User = async function (app, { lightning, router }) {
   const db = await getDb();
@@ -22,8 +25,8 @@ const User = async function (app, { lightning, router }) {
    *
    * Each message is signed by the wallet's key. We therefore get their pubkey from the signature.
    *
-   * In order to prevent replay attacks, the signed message is a nonce + UNIX timestamp.
-   * Requests older than 30 seconds will be rejected.
+   * In order to prevent replay attacks, each signed message contains a UNIX timestamp and is
+   * accepted only once. Requests older than 30 seconds will be rejected.
    *
    */
 
@@ -35,50 +38,22 @@ const User = async function (app, { lightning, router }) {
    * TODO remove this one?
    *
    */
-  interface IGetUserRequest {
-    signature?: string;
-    message?: string;
-  }
   const getUserEndpoint = "/user/get-user";
   app.post(getUserEndpoint, async (request, response) => {
-    const getUserRequest = JSON.parse(request.body as string) as IGetUserRequest; // TODO this sucks
-
-    const verificationResult = await verifyMessage(
+    const authentication = await authenticateSignedRequest(
       lightning,
-      getUserRequest.message!,
-      getUserRequest.signature!,
-    ); // TODO this sucks
-
-    const signedMessage = JSON.parse(getUserRequest.message!) as ISignedMessage; // TODO this sucks
-
-    const pubkey = verificationResult.pubkey;
-    if (!pubkey) {
+      request.body,
+      getUserEndpoint,
+    );
+    if (!authentication.authenticated) {
       response.code(400);
       return {
         status: "ERROR",
-        reason: "Invalid signature",
+        reason: authentication.reason,
       };
     }
 
-    if (signedMessage.endpoint !== getUserEndpoint) {
-      response.code(400);
-      return {
-        status: "ERROR",
-        reason: "Invalid request",
-      };
-    }
-
-    const currentTime = Math.floor(Date.now() / 1000);
-    const timeDiff = currentTime - (signedMessage.timestamp ?? 0);
-    if (timeDiff < -30 || timeDiff > 30) {
-      response.code(400);
-      return {
-        status: "ERROR",
-        reason: "Request is either too old or from the future.",
-      };
-    }
-
-    const user = await getUserByAlias(db, pubkey);
+    const user = await getUserByPubkey(db, authentication.pubkey);
 
     if (!user) {
       response.code(400);
@@ -108,48 +83,22 @@ const User = async function (app, { lightning, router }) {
    * If the wallet has an account already, an error will be returned with a user object.
    *
    */
-  interface ICheckEligibilityRequest {
-    signature?: string;
-    message?: string;
-  }
-  const checkEligibilityEndopint = "/user/check-eligibility";
-  app.post(checkEligibilityEndopint, async (request, response) => {
-    const registerRequest = JSON.parse(request.body as string) as ICheckEligibilityRequest; // TODO this sucks
-
-    const verificationResult = await verifyMessage(
+  const checkEligibilityEndpoint = "/user/check-eligibility";
+  app.post(checkEligibilityEndpoint, async (request, response) => {
+    const authentication = await authenticateSignedRequest(
       lightning,
-      registerRequest.message!,
-      registerRequest.signature!,
-    ); // TODO this sucks
-
-    const pubkey = verificationResult.pubkey;
-    if (!pubkey) {
+      request.body,
+      checkEligibilityEndpoint,
+    );
+    if (!authentication.authenticated) {
       response.code(400);
       return {
         status: "ERROR",
-        reason: "Invalid signature.",
+        reason: authentication.reason,
       };
     }
 
-    const signedMessage = JSON.parse(registerRequest.message!) as ISignedMessage; // TODO this sucks
-    if (signedMessage.endpoint !== checkEligibilityEndopint) {
-      response.code(400);
-      return {
-        status: "ERROR",
-        reason: "Invalid request",
-      };
-    }
-
-    const currentTime = Math.floor(Date.now() / 1000);
-    const timeDiff = currentTime - (signedMessage.timestamp ?? 0);
-    if (timeDiff < -30 || timeDiff > 30) {
-      response.code(400);
-      return {
-        status: "ERROR",
-        reason: "Request is either too old or from the future.",
-      };
-    }
-
+    const pubkey = authentication.pubkey;
     const user = await getUserByPubkey(db, pubkey);
     if (user) {
       response.code(400);
@@ -185,49 +134,22 @@ const User = async function (app, { lightning, router }) {
    * Register a Lightning Box account.
    *
    */
-  interface IRegisterRequest {
-    name?: string;
-    signature?: string;
-    message?: string;
-  }
   const registerEndpoint = "/user/register";
   app.post(registerEndpoint, async (request, response) => {
-    const registerRequest = JSON.parse(request.body as string) as IRegisterRequest; // TODO this sucks
-
-    const verificationResult = await verifyMessage(
+    const authentication = await authenticateSignedRequest(
       lightning,
-      registerRequest.message!,
-      registerRequest.signature!,
-    ); // TODO this sucks
-
-    const pubkey = verificationResult.pubkey;
-    if (!pubkey) {
+      request.body,
+      registerEndpoint,
+    );
+    if (!authentication.authenticated) {
       response.code(400);
       return {
         status: "ERROR",
-        reason: "Invalid signature.",
+        reason: authentication.reason,
       };
     }
 
-    const signedMessage = JSON.parse(registerRequest.message!) as ISignedMessage; // TODO this sucks
-
-    if (signedMessage.endpoint !== registerEndpoint) {
-      response.code(400);
-      return {
-        status: "ERROR",
-        reason: "Invalid request",
-      };
-    }
-
-    const currentTime = Math.floor(Date.now() / 1000);
-    const timeDiff = currentTime - (signedMessage.timestamp ?? 0);
-    if (timeDiff < -30 || timeDiff > 30) {
-      response.code(400);
-      return {
-        status: "ERROR",
-        reason: "Request is either too old or from the future.",
-      };
-    }
+    const { pubkey, signedMessage } = authentication;
 
     if (await getUserByPubkey(db, pubkey)) {
       response.code(400);
@@ -238,9 +160,9 @@ const User = async function (app, { lightning, router }) {
       };
     }
 
-    let alias = signedMessage.data?.name;
+    const requestedAlias = signedMessage.data?.name;
 
-    if (!alias) {
+    if (typeof requestedAlias !== "string") {
       response.code(400);
       return {
         status: "ERROR",
@@ -248,7 +170,7 @@ const User = async function (app, { lightning, router }) {
       };
     }
 
-    alias = alias.toLowerCase();
+    const alias = requestedAlias.toLowerCase();
 
     if (alias === "satoshi") {
       response.code(400);
@@ -288,7 +210,13 @@ const User = async function (app, { lightning, router }) {
       };
     }
 
-    await createUser(db, { alias, pubkey: pubkey });
+    if (!(await createUser(db, { alias, pubkey }))) {
+      response.code(400);
+      return {
+        status: "ERROR",
+        reason: "Alias or node pubkey is already registered.",
+      };
+    }
 
     return {
       status: "OK",
@@ -313,4 +241,118 @@ function sanitizeLightningAddress(subject: string) {
 async function checkIfWalletHasChannel(lightning: Client, pubkey: Uint8Array) {
   const channels = await listChannels(lightning, pubkey);
   return channels.channels?.length > 0;
+}
+
+type AuthenticationResult =
+  | {
+      authenticated: true;
+      pubkey: string;
+      signedMessage: ISignedMessage;
+    }
+  | {
+      authenticated: false;
+      reason: string;
+    };
+
+async function authenticateSignedRequest(
+  lightning: Client,
+  body: unknown,
+  expectedEndpoint: string,
+): Promise<AuthenticationResult> {
+  const signedRequest = parseSignedRequestBody(body);
+  if (!signedRequest) {
+    return { authenticated: false, reason: "Invalid request." };
+  }
+
+  let signedMessage: ISignedMessage;
+  try {
+    const parsedMessage = JSON.parse(signedRequest.message) as unknown;
+    if (!isRecord(parsedMessage)) {
+      return { authenticated: false, reason: "Invalid request." };
+    }
+    signedMessage = parsedMessage as ISignedMessage;
+  } catch {
+    return { authenticated: false, reason: "Invalid request." };
+  }
+
+  if (signedMessage.endpoint !== expectedEndpoint) {
+    return { authenticated: false, reason: "Invalid request." };
+  }
+
+  const currentTime = Math.floor(Date.now() / 1000);
+  if (
+    !Number.isSafeInteger(signedMessage.timestamp) ||
+    Math.abs(currentTime - signedMessage.timestamp!) > SIGNED_MESSAGE_MAX_AGE_SECONDS
+  ) {
+    return {
+      authenticated: false,
+      reason: "Request is either too old or from the future.",
+    };
+  }
+
+  const verificationResult = await verifyMessage(
+    lightning,
+    signedRequest.message,
+    signedRequest.signature,
+  );
+  const pubkey = verificationResult.pubkey;
+  if (!verificationResult.valid || !pubkey || !isValidNodePubkey(pubkey)) {
+    return { authenticated: false, reason: "Invalid signature." };
+  }
+
+  const requestDigest = createHash("sha256")
+    .update(pubkey)
+    .update("\0")
+    .update(signedRequest.message)
+    .digest("hex");
+  const now = Date.now();
+
+  for (const [digest, expiresAt] of consumedSignedMessages) {
+    if (expiresAt <= now) {
+      consumedSignedMessages.delete(digest);
+    }
+  }
+
+  if (consumedSignedMessages.has(requestDigest)) {
+    return { authenticated: false, reason: "Request has already been used." };
+  }
+  consumedSignedMessages.set(
+    requestDigest,
+    now + SIGNED_MESSAGE_MAX_AGE_SECONDS * 2 * 1000,
+  );
+
+  return { authenticated: true, pubkey, signedMessage };
+}
+
+function parseSignedRequestBody(body: unknown): { message: string; signature: string } | null {
+  let parsedBody = body;
+  if (typeof parsedBody === "string") {
+    try {
+      parsedBody = JSON.parse(parsedBody) as unknown;
+    } catch {
+      return null;
+    }
+  }
+
+  if (!isRecord(parsedBody)) {
+    return null;
+  }
+
+  const { message, signature } = parsedBody;
+  if (
+    typeof message !== "string" ||
+    message.length === 0 ||
+    message.length > 12 * 1024 ||
+    typeof signature !== "string" ||
+    signature.length === 0 ||
+    signature.length > 2048
+  ) {
+    return null;
+  }
+
+  return { message, signature };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

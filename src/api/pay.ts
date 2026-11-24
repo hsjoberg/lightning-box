@@ -19,10 +19,21 @@ import { bytesToHexString, uint8ArrayToUnicodeString } from "../utils/common";
 let lnurlPayForwardingRequestCounter = 0;
 const lnurlPayForwardingRequests = new Map<
   number,
-  { response: FastifyReply; pubkey: string; alias: string }
+  {
+    response: FastifyReply;
+    pubkey: string;
+    alias: string;
+    expectedResponse: ForwardResponseType;
+    timeout: ReturnType<typeof setTimeout>;
+  }
 >();
 
 const LnurlPayRequestLNP2PType = 32768 + 691;
+const MIN_SENDABLE_MSAT = 1 * MSAT;
+const MAX_SENDABLE_MSAT = 1_000_000 * MSAT;
+const MAX_COMMENT_LENGTH = 144;
+
+type ForwardResponseType = "LNURLPAY_REQUEST1_RESPONSE" | "LNURLPAY_REQUEST2_RESPONSE";
 
 interface ILnurlPayForwardP2PMessage {
   id: number;
@@ -62,7 +73,9 @@ const Pay = async function (app, { lightning, router }) {
     // If the peer is connected, forward the LNURL-pay request via LN P2P.
     if (await checkPeerConnected(lightning, user.pubkey)) {
       await handleLnurlPayRequest1Forwarding(lightning, user, username, response);
-      return;
+      // The wallet's answer is sent later; returning the reply tells Fastify
+      // not to send an empty response now.
+      return response;
     } else if (config.disableCustodial) {
       return {
         status: "ERROR",
@@ -73,10 +86,10 @@ const Pay = async function (app, { lightning, router }) {
     return {
       tag: "payRequest",
       callback: `${config.domainUrl}/lightning-address/${username}/send`,
-      minSendable: 1 * MSAT,
-      maxSendable: 1000000 * MSAT,
+      minSendable: MIN_SENDABLE_MSAT,
+      maxSendable: MAX_SENDABLE_MSAT,
       metadata: JSON.stringify(constructLnUrlPayMetaData(username, config.domain)),
-      commentAllowed: 144,
+      commentAllowed: MAX_COMMENT_LENGTH,
     };
   });
 
@@ -99,6 +112,8 @@ const Pay = async function (app, { lightning, router }) {
 
       const { amount, comment, payerData } = parseSendTextCallbackQueryParams(request.query);
 
+      // Forwarded requests go to the wallet, which enforces the limits it
+      // advertised itself (minSendable, maxSendable, commentAllowed).
       if (await checkPeerConnected(lightning, user.pubkey)) {
         await handleLnurlPayRequest2Forwarding(
           lightning,
@@ -109,7 +124,7 @@ const Pay = async function (app, { lightning, router }) {
           payerData,
           response,
         );
-        return;
+        return response;
       } else if (config.disableCustodial) {
         return {
           status: "ERROR",
@@ -117,16 +132,11 @@ const Pay = async function (app, { lightning, router }) {
         };
       }
 
-      if (comment && comment.length > 144) {
-        console.error("Got invalid comment length");
-        response.code(400);
-        return {
-          status: "ERROR",
-          reason: "Comment cannot be larger than 144 letters.",
-        };
+      if (comment && comment.length > MAX_COMMENT_LENGTH) {
+        throw new InvalidLnurlPayRequestError(
+          `Comment cannot be larger than ${MAX_COMMENT_LENGTH} characters.`,
+        );
       }
-
-      // TODO check amount
 
       const invoice = await addInvoice(
         lightning,
@@ -152,11 +162,15 @@ const Pay = async function (app, { lightning, router }) {
         successAction: null,
         disposable: true,
       };
-    } catch (error) {
-      response.code(500);
+    } catch (error: unknown) {
+      const invalidRequest = error instanceof InvalidLnurlPayRequestError;
+      if (!invalidRequest) {
+        console.error("Unable to process LNURL-pay callback", error);
+      }
+      response.code(invalidRequest ? 400 : 500);
       return {
         status: "ERROR",
-        reason: error.message,
+        reason: invalidRequest ? error.message : "Unable to process payment request.",
       };
     }
   });
@@ -180,16 +194,30 @@ interface ILnUrlPayParams {
 }
 
 function parseSendTextCallbackQueryParams(params: any): ILnUrlPayParams {
-  try {
-    return {
-      amount: Number.parseInt(params.amount ?? "0", 10),
-      comment: params.comment ?? "",
-      payerData: params.payerdata,
-    };
-  } catch (e) {
-    console.error(e);
-    throw new Error("Could not parse query params");
+  const rawAmount = params?.amount;
+  if (
+    (typeof rawAmount !== "string" && typeof rawAmount !== "number") ||
+    !/^\d+$/.test(String(rawAmount))
+  ) {
+    throw new InvalidLnurlPayRequestError("Invalid amount.");
   }
+
+  const amount = Number(rawAmount);
+  if (!Number.isSafeInteger(amount) || amount <= 0) {
+    throw new InvalidLnurlPayRequestError("Invalid amount.");
+  }
+
+  const comment = params.comment;
+  if (comment !== undefined && typeof comment !== "string") {
+    throw new InvalidLnurlPayRequestError("Invalid comment.");
+  }
+
+  const payerData = params.payerdata;
+  if (payerData !== undefined && typeof payerData !== "string") {
+    throw new InvalidLnurlPayRequestError("Invalid payer data.");
+  }
+
+  return { amount, comment, payerData };
 }
 
 function customMessageHandler(data: any) {
@@ -203,48 +231,61 @@ function customMessageHandler(data: any) {
     const request = JSON.parse(
       uint8ArrayToUnicodeString(customMessage.data),
     ) as ILnurlPayForwardP2PMessage;
-    console.log(request);
+
+    if (!Number.isSafeInteger(request.id)) {
+      console.error("Ignoring LNURL-pay forwarding response with invalid request ID");
+      return;
+    }
 
     if (request.request === "LNURLPAY_REQUEST1_RESPONSE") {
-      if (!lnurlPayForwardingRequests.has(request.id)) {
+      const lnurlPayForwardingRequest = lnurlPayForwardingRequests.get(request.id);
+      if (!lnurlPayForwardingRequest) {
         console.error(`Unknown LNURL-pay forwarding request ${request.id}`);
         return;
       }
-      const lnurlPayForwardingRequest = lnurlPayForwardingRequests.get(request.id);
       const peerPubkey = bytesToHexString(customMessage.peer);
-      if (peerPubkey !== lnurlPayForwardingRequest?.pubkey.toLowerCase()) {
+      if (peerPubkey !== lnurlPayForwardingRequest.pubkey.toLowerCase()) {
         console.error(`Ignoring LNURL-pay forwarding response ${request.id} from unexpected peer`);
         return;
       }
+      if (lnurlPayForwardingRequest.expectedResponse !== request.request) {
+        console.error(`Ignoring out-of-phase LNURL-pay forwarding response ${request.id}`);
+        return;
+      }
+      clearTimeout(lnurlPayForwardingRequest.timeout);
       lnurlPayForwardingRequests.delete(request.id);
 
-      lnurlPayForwardingRequest?.response.send({
+      lnurlPayForwardingRequest.response.send({
         ...request.data,
-        callback: `${config.domainUrl}/lightning-address/${lnurlPayForwardingRequest?.alias}/send`,
+        callback: `${config.domainUrl}/lightning-address/${lnurlPayForwardingRequest.alias}/send`,
       });
     } else if (request.request === "LNURLPAY_REQUEST2_RESPONSE") {
-      const customMessage = lnrpc.CustomMessage.decode(data);
-      const request = JSON.parse(uint8ArrayToUnicodeString(customMessage.data));
-      if (!lnurlPayForwardingRequests.has(request.id)) {
+      const lnurlPayForwardingRequest = lnurlPayForwardingRequests.get(request.id);
+      if (!lnurlPayForwardingRequest) {
         console.error(`Unknown LNURL-pay forwarding callback request ${request.id}`);
         return;
       }
-      const lnurlPayForwardingRequest = lnurlPayForwardingRequests.get(request.id);
       const peerPubkey = bytesToHexString(customMessage.peer);
-      if (peerPubkey !== lnurlPayForwardingRequest?.pubkey.toLowerCase()) {
+      if (peerPubkey !== lnurlPayForwardingRequest.pubkey.toLowerCase()) {
         console.error(
           `Ignoring LNURL-pay forwarding callback response ${request.id} from unexpected peer`,
         );
         return;
       }
+      if (lnurlPayForwardingRequest.expectedResponse !== request.request) {
+        console.error(`Ignoring out-of-phase LNURL-pay forwarding response ${request.id}`);
+        return;
+      }
+      clearTimeout(lnurlPayForwardingRequest.timeout);
       lnurlPayForwardingRequests.delete(request.id);
 
-      lnurlPayForwardingRequest?.response.send(request.data);
+      lnurlPayForwardingRequest.response.send(request.data);
     } else {
       console.error("Unknown message", request);
     }
-  } catch (error) {
-    console.error(`Error when handling custom message: ${error.message}`);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`Error when handling custom message: ${message}`);
   }
 }
 
@@ -255,10 +296,13 @@ async function handleLnurlPayRequest1Forwarding(
   response: FastifyReply,
 ) {
   const currentRequest = lnurlPayForwardingRequestCounter++;
+  const timeout = createForwardingTimeout(currentRequest, requestedUsername, response);
   lnurlPayForwardingRequests.set(currentRequest, {
     pubkey: user.pubkey,
     response,
     alias: requestedUsername,
+    expectedResponse: "LNURLPAY_REQUEST1_RESPONSE",
+    timeout,
   });
 
   const request: ILnurlPayForwardP2PMessage = {
@@ -270,23 +314,17 @@ async function handleLnurlPayRequest1Forwarding(
     },
   };
 
-  await sendCustomMessage(
-    lightning,
-    user.pubkey,
-    LnurlPayRequestLNP2PType,
-    JSON.stringify(request),
-  );
-
-  // Timeout after 30 seconds
-  setTimeout(() => {
-    if (lnurlPayForwardingRequests.has(currentRequest)) {
-      lnurlPayForwardingRequests.delete(currentRequest);
-    }
-    response.send({
-      status: "ERROR",
-      reason: `It's not possible to pay ${requestedUsername}@${config.domain} at this time.`,
-    });
-  }, 30 * 1000);
+  try {
+    await sendCustomMessage(
+      lightning,
+      user.pubkey,
+      LnurlPayRequestLNP2PType,
+      JSON.stringify(request),
+    );
+  } catch (error) {
+    clearForwardingRequest(currentRequest);
+    throw error;
+  }
 }
 
 async function handleLnurlPayRequest2Forwarding(
@@ -299,10 +337,13 @@ async function handleLnurlPayRequest2Forwarding(
   response: FastifyReply,
 ) {
   const currentRequest = lnurlPayForwardingRequestCounter++;
+  const timeout = createForwardingTimeout(currentRequest, requestedUsername, response);
   lnurlPayForwardingRequests.set(currentRequest, {
     pubkey: user.pubkey,
     response,
     alias: requestedUsername,
+    expectedResponse: "LNURLPAY_REQUEST2_RESPONSE",
+    timeout,
   });
 
   const request: ILnurlPayForwardP2PMessage = {
@@ -318,21 +359,42 @@ async function handleLnurlPayRequest2Forwarding(
     },
   };
 
-  await sendCustomMessage(
-    lightning,
-    user.pubkey,
-    LnurlPayRequestLNP2PType,
-    JSON.stringify(request),
-  );
+  try {
+    await sendCustomMessage(
+      lightning,
+      user.pubkey,
+      LnurlPayRequestLNP2PType,
+      JSON.stringify(request),
+    );
+  } catch (error) {
+    clearForwardingRequest(currentRequest);
+    throw error;
+  }
+}
 
-  // Timeout after 30 seconds
-  setTimeout(() => {
-    if (lnurlPayForwardingRequests.has(currentRequest)) {
-      lnurlPayForwardingRequests.delete(currentRequest);
+function createForwardingTimeout(
+  requestId: number,
+  requestedUsername: string,
+  response: FastifyReply,
+) {
+  return setTimeout(() => {
+    if (!lnurlPayForwardingRequests.delete(requestId)) {
+      return;
     }
+
     response.send({
       status: "ERROR",
       reason: `It's not possible to pay ${requestedUsername}@${config.domain} at this time.`,
     });
   }, 30 * 1000);
 }
+
+function clearForwardingRequest(requestId: number) {
+  const request = lnurlPayForwardingRequests.get(requestId);
+  if (request) {
+    clearTimeout(request.timeout);
+    lnurlPayForwardingRequests.delete(requestId);
+  }
+}
+
+class InvalidLnurlPayRequestError extends Error {}

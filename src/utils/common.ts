@@ -42,13 +42,8 @@ export function unicodeStringToUint8Array(s: string) {
   return ua;
 }
 
-export const bytesToHexString = (bytes: Buffer | Uint8Array) => {
-  // console.log("inside bytesToHexString");
-  // console.log(bytes);
-  return bytes.reduce(function (memo, i) {
-    return memo + ("0" + i.toString(16)).slice(-2); //padd with leading 0 if <16
-  }, "");
-};
+export const bytesToHexString = (bytes: Buffer | Uint8Array): string =>
+  Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 
 export const generateBytes = (n: number): Promise<Buffer> => {
   return new Promise((resolve, reject) => {

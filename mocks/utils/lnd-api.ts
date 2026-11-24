@@ -9,6 +9,9 @@ import { stringToUint8Array } from "../../src/utils/common";
 export async function getInfo(lightning: Client) {
   const getInfoResponse = lnrpc.GetInfoResponse.create({
     identityPubkey: "abc",
+    alias: "lightning-box",
+    uris: ["abc@127.0.0.1:9735"],
+    version: "0.21.8-beta",
   });
   return getInfoResponse;
 }
@@ -25,7 +28,8 @@ let verifyMessageValidSig = true;
 export const __verifyMessageSetValidSig = (valid: boolean) => (verifyMessageValidSig = valid);
 export async function verifyMessage(lightning: Client, message: string, signature: string) {
   const verifyMessageResponse = lnrpc.VerifyMessageResponse.create({
-    pubkey: verifyMessageValidSig ? "abcdef12345" : "notvalidsig",
+    valid: verifyMessageValidSig,
+    pubkey: "02".repeat(33),
   });
   return verifyMessageResponse;
 }
@@ -70,3 +74,10 @@ export const checkPeerConnected = jest.fn(() => {
 export function subscribePeerEvents(lightning: Client) {
   return new Stream();
 }
+
+export const __customMessagesStream = new Stream();
+export function SubscribeCustomMessages(lightning: Client) {
+  return __customMessagesStream;
+}
+
+export const sendCustomMessage = jest.fn(async () => ({}));
